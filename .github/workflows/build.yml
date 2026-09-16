@@ -89,7 +89,13 @@ jobs:
           bash 9_repackjre.sh "$PWD/pojav" "$PWD/pojav/jre25-pojav"
           echo "--- repacked bundle ---"
           ls -l pojav/jre25-pojav
-          echo "version=$(cat pojav/jre25-pojav/version)"
+          # the launcher parses this with Long.parseLong: numeric, no newline
+          vbytes=$(wc -c < pojav/jre25-pojav/version | tr -d '[:space:]')
+          if [ "$vbytes" -ne "${#JRE_VERSION}" ]; then
+            echo "version file has $vbytes bytes, expected ${#JRE_VERSION} (no trailing newline)" >&2
+            exit 1
+          fi
+          echo "version=$(cat pojav/jre25-pojav/version) bytes=$vbytes"
 
       - name: Upload the repacked JRE
         uses: actions/upload-artifact@v7

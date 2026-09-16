@@ -93,18 +93,19 @@ makearch i386 x86
 makearch amd64 x86_64
 
 # The version marker is read back by launchers (oxygen-launcher's
-# JreManager.isLatest does version.toLong()), so it has to stay numeric:
-# JRE_VERSION wins, then the CI run number, then the date. A commit sha would
-# break those launchers.
+# JreManager.isLatest does version.toLong()), so it has to stay numeric and
+# WITHOUT a trailing newline: Long.parseLong rejects whitespace. printf is used
+# instead of echo for exactly that reason.
+# JRE_VERSION wins, then the CI run number, then the date.
 if [[ -n "$JRE_VERSION" ]]
 then
-echo "$JRE_VERSION">"$out"/version
+printf '%s' "$JRE_VERSION">"$out"/version
 elif [[ -n "$GITHUB_RUN_NUMBER" ]]
 then
-echo "$GITHUB_RUN_NUMBER">"$out"/version
+printf '%s' "$GITHUB_RUN_NUMBER">"$out"/version
 elif [[ -n "$GITHUB_SHA" ]]
 then
-echo $GITHUB_SHA>"$out"/version
+printf '%s' "$GITHUB_SHA">"$out"/version
 else
-date +%Y%m%d>"$out"/version
+printf '%s' "$(date +%Y%m%d)">"$out"/version
 fi
