@@ -1,21 +1,32 @@
-name: DEV Build OpenJDK 25 for Android aarch64
+name: Build OpenJDK 25 for Android
 
-# Temporary workflow used while porting the JDK 25 patch set. It builds a single
-# configuration (aarch64) to keep runner usage low; the full matrix lives in the
-# buildjre17-21 branch.
+# Manual only: pushing must not start a build, pick the architecture and press
+# "Run workflow" in the Actions tab instead.
+# 17 and 21 are still supported by the scripts/patches (see README); add them to
+# the version list below if they should be built again.
 on:
-  push:
   workflow_dispatch:
+    inputs:
+      arch:
+        description: 'Android architecture'
+        required: true
+        type: choice
+        default: aarch64
+        options:
+          - aarch64
+          - aarch32
+          - x86_64
+      version:
+        description: 'JDK feature version'
+        required: true
+        type: choice
+        default: '25'
+        options:
+          - '25'
 
 jobs:
   build_android:
-    strategy:
-      matrix:
-        arch: ["aarch64"]
-        version: [25]
-      fail-fast: false
-
-    name: "DEV Build Java ${{ matrix.version }} for Android ${{matrix.arch}}"
+    name: "Build Java ${{ inputs.version }} for Android ${{ inputs.arch }}"
     runs-on: ubuntu-22.04
     # stop a stuck build instead of burning the whole runner budget
     timeout-minutes: 150
@@ -23,10 +34,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: set up JDK 1.${{ matrix.version }}
+      - name: set up JDK 1.${{ inputs.version }}
         uses: actions/setup-java@v4
         with:
-          java-version: ${{ matrix.version }}
+          java-version: ${{ inputs.version }}
           distribution: temurin
 
       - name: Install build dependencies
@@ -36,19 +47,18 @@ jobs:
 
       - name: Build with CI build script
         run: |
-          # the runners ship a preinstalled NDK of another revision
-          unset ANDROID_NDK_HOME ANDROID_NDK_ROOT ANDROID_NDK
-          export TARGET_VERSION=${{ matrix.version }}
-          bash "1_ci_build_arch_${{matrix.arch}}.sh"
+          # the runners ship a preinstalled NDK, keep it only if it is the right revision
+          export TARGET_VERSION=${{ inputs.version }}
+          bash "1_ci_build_arch_${{ inputs.arch }}.sh"
 
       - name: Upload JDK build output
         uses: actions/upload-artifact@v4
         with:
-          name: "jdk${{ matrix.version }}-${{matrix.arch}}"
-          path: jdk${{ matrix.version }}*.tar.xz
+          name: "jdk${{ inputs.version }}-${{ inputs.arch }}"
+          path: jdk${{ inputs.version }}*.tar.xz
 
       - name: Upload JRE build output
         uses: actions/upload-artifact@v4
         with:
-          name: "jre${{ matrix.version }}-${{matrix.arch}}"
-          path: jre${{ matrix.version }}*.tar.xz
+          name: "jre${{ inputs.version }}-${{ inputs.arch }}"
+          path: jre${{ inputs.version }}*.tar.xz
