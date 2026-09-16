@@ -1,8 +1,8 @@
-name: DEV Build OpenJDK 25 for Android
+name: DEV Build OpenJDK 25 for Android aarch64
 
-# Temporary workflow used while porting the JDK 25 patch set: it builds the
-# supported JDK 25 architectures and keeps make going after errors so that one
-# run reveals as many compile problems as possible.
+# Temporary workflow used while porting the JDK 25 patch set. It builds a single
+# configuration (aarch64) to keep runner usage low; the full matrix lives in the
+# buildjre17-21 branch.
 on:
   push:
   workflow_dispatch:
@@ -11,13 +11,14 @@ jobs:
   build_android:
     strategy:
       matrix:
-        # JDK 25 has no 32 bit x86 build (removed upstream)
-        arch: ["aarch32", "aarch64", "x86_64"]
+        arch: ["aarch64"]
         version: [25]
       fail-fast: false
 
     name: "DEV Build Java ${{ matrix.version }} for Android ${{matrix.arch}}"
     runs-on: ubuntu-22.04
+    # stop a stuck build instead of burning the whole runner budget
+    timeout-minutes: 150
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,9 +33,6 @@ jobs:
         run: |
           sudo apt update
           sudo apt -y install autoconf python3 python-is-python3 unzip zip systemtap-sdt-dev libxtst-dev libasound2-dev libelf-dev libfontconfig1-dev libx11-dev libxext-dev libxrandr-dev libxrender-dev libxtst-dev libxt-dev
-
-      - name: Keep going after build errors (dev iteration only)
-        run: sed -i 's/make JOBS=$jobs images/make -k JOBS=$jobs images/g' 6_buildjdk.sh && grep -n 'make -k' 6_buildjdk.sh
 
       - name: Build with CI build script
         run: |

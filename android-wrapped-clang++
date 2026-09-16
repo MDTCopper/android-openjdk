@@ -5,8 +5,10 @@ if [ "$1" = "--version" ]; then
   echo "This is free software; see the source for copying conditions.  There is NO"
   echo "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
 else
-  # See android-wrapped-clang: drop the flags that are only valid for gcc.
+  # See android-wrapped-clang: drop the flags that are only valid for gcc and
+  # append the clang warning suppressions (they must come last to win).
   strip_flags="${CLANG_WRAPPER_STRIP_FLAGS:--fno-var-tracking-assignments -fno-lifetime-dse -fno-sanitize-address-use-after-return}"
+  warn_flags="${CLANG_WRAPPER_WARN_FLAGS:--Wno-unknown-warning-option -Wno-unused-private-field}"
 
   args=()
   for arg in "$@"; do
@@ -22,5 +24,5 @@ else
     fi
   done
 
-  exec $thecxx -Wno-unknown-warning-option "${args[@]}"
+  exec $thecxx "${args[@]}" $warn_flags
 fi

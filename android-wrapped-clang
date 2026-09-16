@@ -12,6 +12,12 @@ else
   #   export CLANG_WRAPPER_STRIP_FLAGS="-fno-something"
   strip_flags="${CLANG_WRAPPER_STRIP_FLAGS:--fno-var-tracking-assignments -fno-lifetime-dse -fno-sanitize-address-use-after-return}"
 
+  # In gcc mode the JDK never passes its clang specific -Wno-... suppressions,
+  # so the noisiest clang-only warnings are silenced here instead. These have to
+  # come last: clang lets a later -W flag override an earlier one, and the JDK
+  # appends -Wall/-Wextra.
+  warn_flags="${CLANG_WRAPPER_WARN_FLAGS:--Wno-unknown-warning-option -Wno-unused-private-field}"
+
   args=()
   for arg in "$@"; do
     keep=1
@@ -26,5 +32,5 @@ else
     fi
   done
 
-  exec $thecc -Wno-unknown-warning-option "${args[@]}"
+  exec $thecc "${args[@]}" $warn_flags
 fi
