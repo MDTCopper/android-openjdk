@@ -1,64 +1,116 @@
 name: Build OpenJDK 25 for Android
 
-# Manual only: pushing must not start a build, pick the architecture and press
-# "Run workflow" in the Actions tab instead.
-# 17 and 21 are still supported by the scripts/patches (see README); add them to
-# the version list below if they should be built again.
+# Manual only: pushing must not start a build (it would burn runner minutes).
+# One dispatch builds aarch32 + aarch64 + x86_64, repacks the JREs into the
+# launcher layout (universal.tar.xz + bin-<arch>.tar.xz + version) and refreshes
+# the "jre25" release with those files.
 on:
   workflow_dispatch:
     inputs:
-      arch:
-        description: 'Android architecture'
+      publish_release:
+        description: 'Publish the repacked JRE to the jre25 release'
         required: true
-        type: choice
-        default: aarch64
-        options:
-          - aarch64
-          - aarch32
-          - x86_64
-      version:
-        description: 'JDK feature version'
-        required: true
-        type: choice
-        default: '25'
-        options:
-          - '25'
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
 
 jobs:
-  build_android:
-    name: "Build Java ${{ inputs.version }} for Android ${{ inputs.arch }}"
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        # JDK 25 has no 32 bit x86 build (removed upstream)
+        arch: ["aarch32", "aarch64", "x86_64"]
+    name: "Build JDK 25 for Android ${{ matrix.arch }}"
     runs-on: ubuntu-22.04
     # stop a stuck build instead of burning the whole runner budget
     timeout-minutes: 150
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: set up JDK 1.${{ inputs.version }}
-        uses: actions/setup-java@v4
+      - name: Set up JDK 25 (boot JDK)
+        uses: actions/setup-java@v6
         with:
-          java-version: ${{ inputs.version }}
+          java-version: '25'
           distribution: temurin
 
       - name: Install build dependencies
         run: |
           sudo apt update
-          sudo apt -y install autoconf python3 python-is-python3 unzip zip systemtap-sdt-dev libxtst-dev libasound2-dev libelf-dev libfontconfig1-dev libx11-dev libxext-dev libxrandr-dev libxrender-dev libxtst-dev libxt-dev
+          sudo apt -y install autoconf python3 python-is-python3 unzip zip systemtap-sdt-dev libxtst-dev libasound2-dev libelf-dev libfontconfig1-dev libx11-dev libxext-dev libxrandr-dev libxrender-dev libxt-dev
 
-      - name: Build with CI build script
+      - name: Build with the CI build script
         run: |
           # the runners ship a preinstalled NDK, keep it only if it is the right revision
-          export TARGET_VERSION=${{ inputs.version }}
-          bash "1_ci_build_arch_${{ inputs.arch }}.sh"
+          export TARGET_VERSION=25
+          bash "1_ci_build_arch_${{ matrix.arch }}.sh"
 
-      - name: Upload JDK build output
-        uses: actions/upload-artifact@v4
+      - name: Upload JRE
+        uses: actions/upload-artifact@v7
         with:
-          name: "jdk${{ inputs.version }}-${{ inputs.arch }}"
-          path: jdk${{ inputs.version }}*.tar.xz
+          name: "jre25-${{ matrix.arch }}"
+          path: jre25*.tar.xz
+          if-no-files-found: error
 
-      - name: Upload JRE build output
-        uses: actions/upload-artifact@v4
+      - name: Upload JDK
+        uses: actions/upload-artifact@v7
         with:
-          name: "jre${{ inputs.version }}-${{ inputs.arch }}"
-          path: jre${{ inputs.version }}*.tar.xz
+          name: "jdk25-${{ matrix.arch }}"
+          path: jdk25*.tar.xz
+          if-no-files-found: error
+
+  repack:
+    needs: build
+    name: "Repack JRE and publish the jre25 release"
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Download the per architecture JREs
+        uses: actions/download-artifact@v8
+        with:
+          pattern: jre25-*
+          merge-multiple: true
+          path: pojav
+          # only the artifacts of this run, never a stale build
+          run-id: ${{ github.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Repack into the launcher layout
+        run: |
+          export TARGET_VERSION=25
+          # oxygen-launcher's JreManager.isLatest() parses this as a number
+          export JRE_VERSION=${{ github.run_number }}
+          bash 9_repackjre.sh "$PWD/pojav" "$PWD/pojav/jre25-pojav"
+          echo "--- repacked bundle ---"
+          ls -l pojav/jre25-pojav
+          echo "version=$(cat pojav/jre25-pojav/version)"
+
+      - name: Upload the repacked JRE
+        uses: actions/upload-artifact@v7
+        with:
+          name: jre25-pojav
+          path: pojav/jre25-pojav/*
+          if-no-files-found: error
+
+      - name: Publish to the jre25 release
+        if: ${{ inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view jre25 >/dev/null 2>&1; then
+            gh release edit jre25 --latest \
+              --title "JRE 25 for Android (aarch32/aarch64/x86_64)" \
+              --notes "Repacked OpenJDK 25 runtime (jdk25u): universal.tar.xz + bin-<arch>.tar.xz + version. version is the CI run number, build ${{ github.run_number }}."
+          else
+            gh release create jre25 --latest --target "$GITHUB_REF_NAME" \
+              --title "JRE 25 for Android (aarch32/aarch64/x86_64)" \
+              --notes "Repacked OpenJDK 25 runtime (jdk25u): universal.tar.xz + bin-<arch>.tar.xz + version. version is the CI run number, build ${{ github.run_number }}."
+          fi
+          gh release upload jre25 pojav/jre25-pojav/* --clobber
+          gh release view jre25 --json tagName,isLatest,assets --jq '.tagName, .isLatest, (.assets[].name)'

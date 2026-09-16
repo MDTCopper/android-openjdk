@@ -40,8 +40,8 @@ makearch () {
   mkdir -p "$work1"/lib;
   
   #mv lib/$1 "$work1"/lib/;
-  mv lib/jexec "$work1"/lib/;
-  mv lib/jvm.cfg "$work1"/lib/;
+  mv lib/jexec "$work1"/lib/ 2>/dev/null || true;
+  mv lib/jvm.cfg "$work1"/lib/ 2>/dev/null || true;
   
   # server contains the libjvm.so
   copyjvmlib server $2
@@ -63,14 +63,22 @@ makearch () {
 makeuni () {
   echo "Making universal...";
   cd "$work";
-  tar xf $(find "$in" -name jre${TARGET_VERSION}-arm64-*release.tar.xz) > /dev/null 2>&1;
-  
+  # the universal part only needs one build; prefer arm64, else any architecture
+  local uni_tarball=$(find "$in" -name jre${TARGET_VERSION}-arm64-*release.tar.xz | head -n1)
+  if [[ -z "$uni_tarball" ]]; then
+    uni_tarball=$(find "$in" -name jre${TARGET_VERSION}-*release.tar.xz | head -n1)
+  fi
+  if [[ -z "$uni_tarball" ]]; then
+    echo "No jre${TARGET_VERSION} tarball found in $in" >&2
+    return 1
+  fi
+  tar xf "$uni_tarball" > /dev/null 2>&1;
+
   rm -rf bin;
   rm -rf lib/server;
-  rm lib/jexec;
-  rm lib/jvm.cfg;
+  # jexec/jvm.cfg/release are launcher details and not present in every image
+  rm -f lib/jexec lib/jvm.cfg release
   find ./ -name '*.so' -execdir rm {} \; # Remove arch specific shared objects
-  rm release
   
   XZ_OPT="-6 --threads=0" tar cJf universal.tar.xz * > /dev/null;
   mv universal.tar.xz "$out"/;
@@ -84,8 +92,17 @@ makearch aarch64 arm64
 makearch i386 x86
 makearch amd64 x86_64
 
-# if running under GitHub Actions, write commit sha, else formatted system date
-if [[ -n "$GITHUB_SHA" ]]
+# The version marker is read back by launchers (oxygen-launcher's
+# JreManager.isLatest does version.toLong()), so it has to stay numeric:
+# JRE_VERSION wins, then the CI run number, then the date. A commit sha would
+# break those launchers.
+if [[ -n "$JRE_VERSION" ]]
+then
+echo "$JRE_VERSION">"$out"/version
+elif [[ -n "$GITHUB_RUN_NUMBER" ]]
+then
+echo "$GITHUB_RUN_NUMBER">"$out"/version
+elif [[ -n "$GITHUB_SHA" ]]
 then
 echo $GITHUB_SHA>"$out"/version
 else
