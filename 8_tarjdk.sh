@@ -25,8 +25,12 @@ exit 1
 ' sh {} \; -print
 }
 
-findexec jreout | xargs -- ./termux-elf-cleaner/build/termux-elf-cleaner
-findexec jdkout | xargs -- ./termux-elf-cleaner/build/termux-elf-cleaner
+# --api-level is essential: without it termux-elf-cleaner assumes API 21 and
+# strips DT_GNU_HASH (and VERSYM/VERNEED/VERDEF/RUNPATH), which leaves the
+# libraries without any hash table and bionic then fails with
+# "empty/missing DT_HASH/DT_GNU_HASH ... (new hash type from the future?)".
+findexec jreout | xargs -- ./termux-elf-cleaner/build/termux-elf-cleaner --api-level ${API}
+findexec jdkout | xargs -- ./termux-elf-cleaner/build/termux-elf-cleaner --api-level ${API}
 
 fi
 

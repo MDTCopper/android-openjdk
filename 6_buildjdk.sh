@@ -51,7 +51,10 @@ if [[ "$BUILD_IOS" != "1" ]]; then
   AUTOCONF_x11arg="--x-includes=$ANDROID_INCLUDE/X11"
 
   export CFLAGS+=" -mllvm -polly -DANDROID -Wno-error=implicit-function-declaration -Wno-error=int-conversion"
-  export LDFLAGS+=" -L$PWD/dummy_libs -Wl,--undefined-version"
+  # --hash-style=both makes every library carry DT_HASH *and* DT_GNU_HASH, so a
+  # tool that strips one of the two (termux-elf-cleaner used to remove
+  # DT_GNU_HASH) can never leave a library that bionic refuses to load.
+  export LDFLAGS+=" -L$PWD/dummy_libs -Wl,--undefined-version -Wl,--hash-style=both"
 
 # Create dummy libraries so we won't have to remove them in OpenJDK makefiles
   mkdir -p dummy_libs

@@ -68,3 +68,37 @@ removed 32-bit x86, and `isTargetCpu, x86` is false for `x86_64`.
   flags (`-fno-lifetime-dse`, …) and silence the clang warnings that the JDK only
   disables in clang mode (`-w`); both lists are overridable through
   `CLANG_WRAPPER_STRIP_FLAGS` / `CLANG_WRAPPER_WARN_FLAGS`.
+
+## Android loader pitfall: the hash table has to survive `termux-elf-cleaner`
+
+The first JDK 25 release was unusable on device: every library except `libjvm.so`
+failed to load with
+
+```
+dlopen failed: empty/missing DT_HASH/DT_GNU_HASH in ".../libjli.so"
+(new hash type from the future?)
+```
+
+Cause: the patched `flags-ldflags.m4` switches the `--hash-style` of the *JVM*
+link line to `sysv`, so `libjvm.so` carries `DT_HASH` and loads. The JDK
+libraries link with `LDFLAGS_JDKLIB`, which never got that flag, so lld used its
+default `gnu` style and they carry `DT_GNU_HASH` only. `8_tarjdk.sh` then ran
+`termux-elf-cleaner` without `--api-level`, and the tool defaults to API 21:
+
+```c
+case DT_GNU_HASH: if (api_level < 23) removed_name = "DT_GNU_HASH"; break;
+```
+
+so the tag was removed while the `.gnu.hash` section stayed behind, leaving those
+libraries with no usable hash table.
+
+Two independent guards now prevent this:
+
+1. `8_tarjdk.sh` passes `--api-level ${API}` (30), so nothing that API 30
+   supports (GNU hash, version sections, RUNPATH) is stripped.
+2. `6_buildjdk.sh` adds `-Wl,--hash-style=both` to the target `LDFLAGS`, so every
+   library carries `DT_HASH` *and* `DT_GNU_HASH` and survives a tool that removes
+   one of them.
+
+Check a build with `llvm-readelf -d lib/libjli.so | grep HASH`: at least one hash
+tag must be listed.
