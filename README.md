@@ -27,6 +27,7 @@ version script fix that `patches/jre_25` carries.
 - Download Android NDK r29 (29.0.14206865) from https://developer.android.com/ndk/downloads and place it in this directory (Can't automatically download because of EULA)
   - It is also found with `ANDROID_NDK_HOME` or `<android-sdk>/ndk/29.0.14206865` if the NDK was installed through the Android SDK manager.
   - The CI workflow downloads the standalone NDK r29 zip automatically.
+  - Whichever NDK is picked, its `source.properties` must report `Pkg.Revision = 29.0.14206865`. Any other revision is rejected (set `SKIP_NDK_VERSION_CHECK=1` to override), and the revision is re-verified after the CI download.
 - A boot JDK matching the target version (17, 21 or 25) must be the active JDK.
 
 #### iOS

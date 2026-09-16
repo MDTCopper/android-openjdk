@@ -64,20 +64,30 @@ export JVM_PLATFORM=linux
 # Android 11 is the oldest supported release (API level 30)
 export API=30
 
+# Host tag of the prebuilt toolchain. Every supported build environment for this
+# repository is linux-x86_64 (GitHub's ubuntu runners and the Dockerfile); it
+# lives in a variable so the revision check below and $TOOLCHAIN cannot drift
+# apart when a host is added.
+export DEVKIT_HOST_TAG=linux-x86_64
+
 # Pick the NDK to build against. An explicitly configured ANDROID_NDK_HOME is
 # honoured, but a preinstalled NDK of another revision (the GitHub runners ship
 # one) is rejected so that the build always uses $NDK_REVISION.
+#
+# This fails closed: a directory is accepted only when it really is NDK
+# $NDK_REVISION. Both the standalone archive and the SDK install ship
+# source.properties (verified for android-ndk-r29-linux.zip), so a missing file
+# means the revision cannot be proven and the candidate must be rejected instead
+# of trusted.
 ndk_revision_matches() {
   local root="$1"
-  [[ -n "$root" && -d "$root/toolchains/llvm/prebuilt/linux-x86_64" ]] || return 1
-  # Both the standalone and the SDK install ship a source.properties
-  if [[ -f "$root/source.properties" ]]; then
-    grep -q "^Pkg.Revision = ${NDK_REVISION}$" "$root/source.properties" || return 1
-  fi
-  return 0
+  [[ -n "$root" && -d "$root/toolchains/llvm/prebuilt/$DEVKIT_HOST_TAG" ]] || return 1
+  [[ -f "$root/source.properties" ]] || return 1
+  # -x -F: match the whole line, literally (the dots in the revision are not a regex)
+  grep -qxF "Pkg.Revision = ${NDK_REVISION}" "$root/source.properties"
 }
 
-if [[ -n "$ANDROID_NDK_HOME" && "$SKIP_NDK_VERSION_CHECK" != "1" ]] && ! ndk_revision_matches "$ANDROID_NDK_HOME"; then
+if [[ -n "$ANDROID_NDK_HOME" && "${SKIP_NDK_VERSION_CHECK:-0}" != "1" ]] && ! ndk_revision_matches "$ANDROID_NDK_HOME"; then
   echo "NOTE: ignoring ANDROID_NDK_HOME=$ANDROID_NDK_HOME, it is not NDK $NDK_REVISION"
   echo "      (set SKIP_NDK_VERSION_CHECK=1 to use it anyway)"
   unset ANDROID_NDK_HOME
@@ -87,21 +97,23 @@ if [[ -z "$ANDROID_NDK_HOME" ]]
 then
   # An Android SDK install, e.g. ./android-sdk/ndk/29.0.14206865
   for ndk_candidate in \
-      "$ANDROID_SDK_ROOT/ndk/$NDK_REVISION" \
-      "$ANDROID_HOME/ndk/$NDK_REVISION" \
+      "${ANDROID_SDK_ROOT:-}/ndk/$NDK_REVISION" \
+      "${ANDROID_HOME:-}/ndk/$NDK_REVISION" \
       "$PWD/../android-sdk/ndk/$NDK_REVISION"; do
     if ndk_revision_matches "$ndk_candidate"; then
       export ANDROID_NDK_HOME="$ndk_candidate"
       break
     fi
   done
-  # ...otherwise use the standalone NDK that 2_ci_build_global.sh downloads
+  # ...otherwise use the standalone NDK that 2_ci_build_global.sh downloads into
+  # exactly this path. That script re-verifies the revision after extracting, so
+  # a stale or half-unpacked directory here is never used silently.
   if [[ -z "$ANDROID_NDK_HOME" ]]; then
     export ANDROID_NDK_HOME=$PWD/android-ndk-$NDK_VERSION
   fi
 fi
 
-export TOOLCHAIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64
+export TOOLCHAIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/$DEVKIT_HOST_TAG
 
 export ANDROID_INCLUDE=$TOOLCHAIN/sysroot/usr/include
 

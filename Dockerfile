@@ -46,11 +46,17 @@ WORKDIR /home
 
 # NDK install (r29 == 29.0.14206865)
 ENV NDK_VERSION r29
+ENV NDK_REVISION 29.0.14206865
 ENV ANDROID_NDK_HOME /home/android-ndk-$NDK_VERSION
+# -nc is deliberately not used: it is incompatible with -O and can leave a
+# truncated archive behind. The revision is verified so the image can never
+# silently carry an NDK other than the one the build pins (setdevkitpath.sh
+# re-checks it at build time as well).
 RUN \
-    wget -nc -nv -O android-ndk-$NDK_VERSION-linux-x86_64.zip "https://dl.google.com/android/repository/android-ndk-$NDK_VERSION-linux.zip" \
+    wget -nv -O android-ndk-$NDK_VERSION-linux-x86_64.zip "https://dl.google.com/android/repository/android-ndk-$NDK_VERSION-linux.zip" \
     && unzip -q android-ndk-$NDK_VERSION-linux-x86_64.zip \
-    && rm android-ndk-$NDK_VERSION-linux-x86_64.zip
+    && rm android-ndk-$NDK_VERSION-linux-x86_64.zip \
+    && grep -qxF "Pkg.Revision = $NDK_REVISION" "$ANDROID_NDK_HOME/source.properties"
 
 
 COPY . .
