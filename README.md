@@ -4,15 +4,21 @@ Based on http://openjdk.java.net/projects/mobile/android.html
 
 ## Supported builds
 
-| Target version | Architectures | Minimum API level | NDK |
-|----------------|---------------|-------------------|-----|
-| 17 | aarch32, aarch64, x86, x86_64 | 30 (Android 11) | r29 (29.0.14206865) |
-| 21 | aarch32, aarch64, x86, x86_64 | 30 (Android 11) | r29 (29.0.14206865) |
-| 25 | aarch32, aarch64, x86_64 | 30 (Android 11) | r29 (29.0.14206865) |
+| Target version | Architectures | Minimum API level | NDK | State |
+|----------------|---------------|-------------------|-----|-------|
+| 25 | aarch64, aarch32, x86_64 | 30 (Android 11) | r29 (29.0.14206865) | CI verified for aarch64 |
+| 17 | aarch32, aarch64, x86, x86_64 | 30 (Android 11) | r29 (29.0.14206865) | scripts/patches kept, **not** re-verified after the NDK/API bump |
+| 21 | aarch32, aarch64, x86, x86_64 | 30 (Android 11) | r29 (29.0.14206865) | scripts/patches kept, **not** re-verified after the NDK/API bump |
 
 JDK 25 does **not** support 32-bit x86: `openjdk/jdk25u` removed that port upstream,
 so `1_ci_build_arch_x86.sh` refuses to run with `TARGET_VERSION=25`.
 On 32-bit ARM, g1gc is disabled for JDK 25 (it dies with SIGILL since JDK 24).
+
+The CI workflow builds JDK 25 only, one architecture per manual run.
+17 and 21 keep their patch sets and can be added back to the workflow's version
+list, but note that the switch to NDK r29/API 30 was only validated for JDK 25:
+17/21 were last built against NDK r27b and would also need the `_fini`/`_init`
+version script fix that `patches/jre_25` carries.
 
 ## Building 
 
