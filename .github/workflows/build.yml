@@ -113,4 +113,5 @@ jobs:
               --notes "Repacked OpenJDK 25 runtime (jdk25u): universal.tar.xz + bin-<arch>.tar.xz + version. version is the CI run number, build ${{ github.run_number }}."
           fi
           gh release upload jre25 pojav/jre25-pojav/* --clobber
-          gh release view jre25 --json tagName,isLatest,assets --jq '.tagName, .isLatest, (.assets[].name)'
+          echo "--- assets on the jre25 release ---"
+          gh release view jre25 --json tagName,assets --jq '.tagName, (.assets[].name)'
