@@ -1,8 +1,8 @@
-name: DEV Build OpenJDK 25 for Android aarch64
+name: DEV Build OpenJDK 25 for Android
 
-# Temporary workflow used while porting the JDK 25 patch set: it only builds the
-# single fastest configuration and keeps make going after errors so that one run
-# reveals as many compile problems as possible.
+# Temporary workflow used while porting the JDK 25 patch set: it builds the
+# supported JDK 25 architectures and keeps make going after errors so that one
+# run reveals as many compile problems as possible.
 on:
   push:
   workflow_dispatch:
@@ -11,7 +11,8 @@ jobs:
   build_android:
     strategy:
       matrix:
-        arch: ["aarch64"]
+        # JDK 25 has no 32 bit x86 build (removed upstream)
+        arch: ["aarch32", "aarch64", "x86_64"]
         version: [25]
       fail-fast: false
 
@@ -36,7 +37,11 @@ jobs:
         run: sed -i 's/make JOBS=$jobs images/make -k JOBS=$jobs images/g' 6_buildjdk.sh && grep -n 'make -k' 6_buildjdk.sh
 
       - name: Build with CI build script
-        run: export TARGET_VERSION=${{ matrix.version }} && bash "1_ci_build_arch_${{matrix.arch}}.sh"
+        run: |
+          # the runners ship a preinstalled NDK of another revision
+          unset ANDROID_NDK_HOME ANDROID_NDK_ROOT ANDROID_NDK
+          export TARGET_VERSION=${{ matrix.version }}
+          bash "1_ci_build_arch_${{matrix.arch}}.sh"
 
       - name: Upload JDK build output
         uses: actions/upload-artifact@v4

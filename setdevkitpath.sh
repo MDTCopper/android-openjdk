@@ -64,21 +64,38 @@ export JVM_PLATFORM=linux
 # Android 11 is the oldest supported release (API level 30)
 export API=30
 
-# Runners usually ship with a recent NDK already.
-# Accept an explicit ANDROID_NDK_HOME, an Android SDK install
-# (<sdk>/ndk/<revision>, e.g. ./android-sdk/ndk/29.0.14206865) or the standalone
-# download this repository unpacks itself.
+# Pick the NDK to build against. An explicitly configured ANDROID_NDK_HOME is
+# honoured, but a preinstalled NDK of another revision (the GitHub runners ship
+# one) is rejected so that the build always uses $NDK_REVISION.
+ndk_revision_matches() {
+  local root="$1"
+  [[ -n "$root" && -d "$root/toolchains/llvm/prebuilt/linux-x86_64" ]] || return 1
+  # Both the standalone and the SDK install ship a source.properties
+  if [[ -f "$root/source.properties" ]]; then
+    grep -q "^Pkg.Revision = ${NDK_REVISION}$" "$root/source.properties" || return 1
+  fi
+  return 0
+}
+
+if [[ -n "$ANDROID_NDK_HOME" && "$SKIP_NDK_VERSION_CHECK" != "1" ]] && ! ndk_revision_matches "$ANDROID_NDK_HOME"; then
+  echo "NOTE: ignoring ANDROID_NDK_HOME=$ANDROID_NDK_HOME, it is not NDK $NDK_REVISION"
+  echo "      (set SKIP_NDK_VERSION_CHECK=1 to use it anyway)"
+  unset ANDROID_NDK_HOME
+fi
+
 if [[ -z "$ANDROID_NDK_HOME" ]]
 then
+  # An Android SDK install, e.g. ./android-sdk/ndk/29.0.14206865
   for ndk_candidate in \
       "$ANDROID_SDK_ROOT/ndk/$NDK_REVISION" \
       "$ANDROID_HOME/ndk/$NDK_REVISION" \
       "$PWD/../android-sdk/ndk/$NDK_REVISION"; do
-    if [[ -n "$ndk_candidate" && -d "$ndk_candidate/toolchains/llvm/prebuilt/linux-x86_64" ]]; then
+    if ndk_revision_matches "$ndk_candidate"; then
       export ANDROID_NDK_HOME="$ndk_candidate"
       break
     fi
   done
+  # ...otherwise use the standalone NDK that 2_ci_build_global.sh downloads
   if [[ -z "$ANDROID_NDK_HOME" ]]; then
     export ANDROID_NDK_HOME=$PWD/android-ndk-$NDK_VERSION
   fi

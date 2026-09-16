@@ -5,6 +5,26 @@ if [ "$1" = "--version" ]; then
   echo "This is free software; see the source for copying conditions.  There is NO"
   echo "warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
 else
-  exec $thecc -Wno-unknown-warning-option "${@/-fno-var-tracking-assignments/}"
-  # exec $thecc "$theargs"
+  # We report ourselves as gcc, so the JDK picks its gcc toolchain configuration
+  # and hands us flags that only gcc understands. clang treats an unknown
+  # argument as a hard error, so they have to be dropped here.
+  # More can be added without editing this file:
+  #   export CLANG_WRAPPER_STRIP_FLAGS="-fno-something"
+  strip_flags="${CLANG_WRAPPER_STRIP_FLAGS:--fno-var-tracking-assignments -fno-lifetime-dse -fno-sanitize-address-use-after-return}"
+
+  args=()
+  for arg in "$@"; do
+    keep=1
+    for sf in $strip_flags; do
+      if [ "$arg" = "$sf" ]; then
+        keep=0
+        break
+      fi
+    done
+    if [ "$keep" = "1" ]; then
+      args+=("$arg")
+    fi
+  done
+
+  exec $thecc -Wno-unknown-warning-option "${args[@]}"
 fi
