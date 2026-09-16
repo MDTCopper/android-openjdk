@@ -1,10 +1,13 @@
 # Description: Set the environment variables for the build scripts.
-export NDK_VERSION=r27b
+# NDK release name, used for the standalone download (android-ndk-<release>-linux.zip)
+export NDK_VERSION=r29
+# Full NDK package revision, used for Android SDK style installs (<sdk>/ndk/<revision>)
+export NDK_REVISION=29.0.14206865
 
-# Target version is either 17 or 21
+# Target version is either 17, 21 or 25
 if [[ -z "$TARGET_VERSION" ]]
 then
-  export TARGET_VERSION=21
+  export TARGET_VERSION=25
 fi
 
 
@@ -57,12 +60,28 @@ if [[ "$BUILD_IOS" == "1" ]]; then
 else
 
 export JVM_PLATFORM=linux
-export API=21
 
-# Runners usually ship with a recent NDK already
+# Android 11 is the oldest supported release (API level 30)
+export API=30
+
+# Runners usually ship with a recent NDK already.
+# Accept an explicit ANDROID_NDK_HOME, an Android SDK install
+# (<sdk>/ndk/<revision>, e.g. ./android-sdk/ndk/29.0.14206865) or the standalone
+# download this repository unpacks itself.
 if [[ -z "$ANDROID_NDK_HOME" ]]
 then
-  export ANDROID_NDK_HOME=$PWD/android-ndk-$NDK_VERSION
+  for ndk_candidate in \
+      "$ANDROID_SDK_ROOT/ndk/$NDK_REVISION" \
+      "$ANDROID_HOME/ndk/$NDK_REVISION" \
+      "$PWD/../android-sdk/ndk/$NDK_REVISION"; do
+    if [[ -n "$ndk_candidate" && -d "$ndk_candidate/toolchains/llvm/prebuilt/linux-x86_64" ]]; then
+      export ANDROID_NDK_HOME="$ndk_candidate"
+      break
+    fi
+  done
+  if [[ -z "$ANDROID_NDK_HOME" ]]; then
+    export ANDROID_NDK_HOME=$PWD/android-ndk-$NDK_VERSION
+  fi
 fi
 
 export TOOLCHAIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64

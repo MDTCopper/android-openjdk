@@ -37,7 +37,7 @@ if [[ "$BUILD_IOS" != "1" ]]; then
     --with-freetype-lib=$FREETYPE_DIR/lib \
     "
 
-  if [[ $TARGET_VERSION -eq 21 ]]; then
+  if [[ $TARGET_VERSION -ge 21 ]]; then
     platform_args+="--build=x86_64-unknown-linux-gnu \
     "
   fi
@@ -104,6 +104,14 @@ fi
 #   --with-extra-cxxflags="$CXXFLAGS -Dchar16_t=uint16_t -Dchar32_t=uint32_t" \
 #   --with-extra-cflags="$CPPFLAGS" \
 
+# JVM features to build. g1gc has to be disabled on 32 bit ARM since JDK 24,
+# otherwise the resulting VM dies with SIGILL (see Termux's openjdk package
+# and https://github.com/openjdk/jdk24u/commit/0b467e902d591ae9feeec1669918d1588987cd1c).
+JVM_FEATURES="-dtrace,-zero,-vm-structs,-epsilongc"
+if [[ "$TARGET_JDK" == "arm" ]]; then
+  JVM_FEATURES="$JVM_FEATURES,-g1gc"
+fi
+
 bash ./configure \
     --openjdk-target=$TARGET \
     --with-extra-cflags="$CFLAGS" \
@@ -114,7 +122,7 @@ bash ./configure \
     --enable-option-checking=fatal \
     --enable-headless-only=yes \
     --with-jvm-variants=$JVM_VARIANTS \
-    --with-jvm-features=-dtrace,-zero,-vm-structs,-epsilongc \
+    --with-jvm-features=$JVM_FEATURES \
     --with-cups-include=$CUPS_DIR \
     --with-devkit=$TOOLCHAIN \
     --with-native-debug-symbols=external \

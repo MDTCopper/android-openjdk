@@ -29,7 +29,13 @@ copyjvmlib() {
 makearch () {
   echo "Making $2...";
   cd "$work";
-  tar xf $(find "$in" -name jre${TARGET_VERSION}-$2-*release.tar.xz) > /dev/null 2>&1;
+  # JDK 25 has no 32-bit x86 build, so not every architecture has to exist
+  local tarball=$(find "$in" -name jre${TARGET_VERSION}-$2-*release.tar.xz | head -n1)
+  if [[ -z "$tarball" ]]; then
+    echo "Skipping $2: no jre${TARGET_VERSION}-$2 tarball found";
+    return 0
+  fi
+  tar xf "$tarball" > /dev/null 2>&1;
   mv bin "$work1"/;
   mkdir -p "$work1"/lib;
   
