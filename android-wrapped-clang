@@ -12,11 +12,13 @@ else
   #   export CLANG_WRAPPER_STRIP_FLAGS="-fno-something"
   strip_flags="${CLANG_WRAPPER_STRIP_FLAGS:--fno-var-tracking-assignments -fno-lifetime-dse -fno-sanitize-address-use-after-return}"
 
-  # In gcc mode the JDK never passes its clang specific -Wno-... suppressions,
-  # so the noisiest clang-only warnings are silenced here instead. These have to
-  # come last: clang lets a later -W flag override an earlier one, and the JDK
-  # appends -Wall/-Wextra.
-  warn_flags="${CLANG_WRAPPER_WARN_FLAGS:--Wno-unknown-warning-option -Wno-unused-private-field}"
+  # In gcc mode the JDK never applies its clang specific -Wno-... suppressions,
+  # so warnings from the JDK's own headers flood the build log. Errors are not
+  # affected by -w and warnings are not errors here (--disable-warnings-as-errors),
+  # so silence them all; set CLANG_WRAPPER_WARN_FLAGS to bring them back, e.g.
+  #   export CLANG_WRAPPER_WARN_FLAGS="-Wno-unknown-warning-option"
+  # These have to come last: clang lets a later -W flag override an earlier one.
+  warn_flags="${CLANG_WRAPPER_WARN_FLAGS:--Wno-unknown-warning-option -w}"
 
   args=()
   for arg in "$@"; do
