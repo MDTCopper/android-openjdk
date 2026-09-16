@@ -62,6 +62,32 @@ jobs:
           path: jdk25*.tar.xz
           if-no-files-found: error
 
+      - name: Verify every ELF keeps a hash table
+        run: |
+          # bionic refuses to load a library without DT_HASH/DT_GNU_HASH
+          # ("empty/missing DT_HASH/DT_GNU_HASH ... new hash type from the
+          # future?"), so fail here instead of publishing a broken release.
+          set -e
+          rm -rf verify-elf && mkdir -p verify-elf
+          checked=0
+          failed=0
+          for tb in jre25*.tar.xz jdk25*.tar.xz; do
+            [ -e "$tb" ] || continue
+            d="verify-elf/${tb%.tar.xz}"
+            mkdir -p "$d"
+            tar -xJf "$tb" -C "$d"
+            while IFS= read -r f; do
+              readelf -h "$f" >/dev/null 2>&1 || continue
+              checked=$((checked + 1))
+              if ! readelf -d "$f" 2>/dev/null | grep -qE '\(HASH\)|\(GNU_HASH\)'; then
+                echo "::error::$f has no DT_HASH/DT_GNU_HASH (bionic cannot load it)"
+                failed=$((failed + 1))
+              fi
+            done < <(find "$d" -type f \( -name '*.so' -o -path '*/bin/*' \))
+          done
+          echo "checked $checked ELF files, $failed without a hash table"
+          [ "$failed" -eq 0 ]
+
   repack:
     needs: build
     name: "Repack JRE and publish the jre25 release"
